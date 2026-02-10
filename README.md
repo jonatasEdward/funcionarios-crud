@@ -157,65 +157,40 @@ Vamos seguir o caminho que os dados percorrem desde o usuário até serem salvos
 
 ```mermaid
 sequenceDiagram
-    participant Usuário
     participant Main
-    participant Controller as FuncionarioController
-    participant Service as FuncionarioService
-    participant Repository as FuncionarioRepositoryMemoria
-    participant Entity as Funcionario
+    participant Controller
+    participant Service
+    participant Repository
+    participant RepositoryMemory
 
-    Usuário->>Main: escolhe opção "Salvar" e fornece dados
-    Main->>Controller: salvarFuncionario(nome, email, cpf, salario)
-    activate Controller
-    Controller-->>Controller: validação básica (salario != null)
-    alt salario inválido
-        Controller-->>Main: lança IllegalArgumentException
-    else
-        Controller->>Service: cadastrarFuncionario(nome, email, cpf, salario)
-        activate Service
-
-        Service->>Repository: buscarPorCpf(cpf)
-        activate Repository
-        Repository-->>Service: retorno (null ou existente)
-        deactivate Repository
-
-        alt CPF já cadastrado
-            Service-->>Controller: lança IllegalArgumentException
-        else
-            Service->>Entity: new Funcionario(nome,email,cpf,salario)
-            activate Entity
-            Entity-->>Service: objeto Funcionario (valida via setters)
-            deactivate Entity
-
-            Service->>Repository: salvar(funcionario)
-            activate Repository
-            Repository-->>Service: funcionario salvo
-            deactivate Repository
-
-            Service-->>Controller: retorna funcionario salvo
-        end
-        deactivate Service
-    end
-
-    Controller-->>Main: retorna funcionario salvo
-    deactivate Controller
-    Main-->>Usuário: exibe mensagem de sucesso ou erro
+    Main->>Controller: cadastrarFuncionario()
+    Controller->>Service: cadastrarFuncionario()
+    Service->>Service: validarDadosNegocio()
+    Service->>Repository: salvar(Funcionario)
+    Repository->>RepositoryMemory: salvar(Funcionario)
+    RepositoryMemory-->>Repository: return Funcionario
+    Repository-->>Service: return Funcionario
+    Service-->>Controller: return Funcionario
+    Controller-->>Main: return Funcionario
 ```
 
 Observações e mapeamento para o código
 
-- Pontos principais do fluxo (arquivos/métodos):
-  - `Main.main()` chama `FuncionarioController.salvarFuncionario(...)` — arquivo: `src/Main.java`.
-  - `FuncionarioController.salvarFuncionario` faz checagem básica (salário != null) e delega para `FuncionarioService.cadastrarFuncionario(...)` — arquivo: `src/controller/FuncionarioController.java`.
-  - `FuncionarioService.cadastrarFuncionario` chama `validarDadosNegocio(...)` que, entre outras coisas, invoca `repository.buscarPorCpf(cpf)` para garantir CPF único — arquivo: `src/service/FuncionarioService.java`.
-  - Se CPF livre, `FuncionarioService` instancia `new Funcionario(...)` (o construtor usa os setters que validam nome, email, cpf, salario) — arquivo: `src/entity/Funcionario.java`.
-  - `FuncionarioService` chama `repository.salvar(funcionario)` que valida integridade (recheca CPF) e adiciona o objeto à lista em memória (`ArrayList`) — arquivo: `src/repository/FuncionarioRepositoryMemoria.java`.
-  - O `repository.salvar` retorna o objeto salvo, a `Service` retorna ao `Controller`, e `Main` exibe o resultado.
+- Fluxo principal (passo a passo mapeado para arquivos/métodos):
+  1. Usuário interage com a aplicação (entrada no console) — `src/Main.java`.
+  2. `Main` chama `FuncionarioController.salvarFuncionario(nome, email, cpf, salario)` — `src/controller/FuncionarioController.java`.
+     - O `Controller` executa validação básica (por exemplo: `salario != null`) e, se válida, delega ao `Service`.
+  3. `FuncionarioService.cadastrarFuncionario(...)` aplica regras de domínio — `src/service/FuncionarioService.java`.
+     - Dentro do `Service` o método `validarDadosNegocio(...)` costuma chamar `repository.buscarPorCpf(cpf)` para garantir unicidade de CPF.
+  4. Se o CPF estiver livre, o `Service` instancia `new Funcionario(nome, email, cpf, salario)` — `src/entity/Funcionario.java` (o construtor usa setters que validam atributos).
+  5. O `Service` chama `repository.salvar(funcionario)` para persistir — implementação: `src/repository/FuncionarioRepositoryMemoria.java`.
+     - O `Repository` realiza checagens de integridade (p.ex. revalidar CPF) e adiciona o objeto à lista em memória (`ArrayList`).
+  6. O `Funcionario` salvo é retornado: Repository → Service → Controller → Main → Usuário (saída/feedback).
 
-- Possíveis caminhos de erro (capturados no diagrama):
-  - Salário nulo: `Controller` lança `IllegalArgumentException` antes de chamar o Service.
-  - CPF já existente: `validarDadosNegocio` (ou `repository.salvar` em checagem extra) lança `IllegalArgumentException` e a operação é abortada.
-  - Validações do `Funcionario` (nome/email/CPF/salário) podem lançar `IllegalArgumentException` no momento da construção do objeto; isso é capturado por `Service.cadastrarFuncionario` e relançado como `RuntimeException` no código atual.
+- Caminhos de erro (conforme o diagrama):
+  - Falha de validação básica no `Controller` (ex.: salário nulo) → `IllegalArgumentException` e fluxo é interrompido antes do `Service`.
+  - `validarDadosNegocio` no `Service` detecta CPF duplicado → lança exceção e operação é abortada.
+  - Validações na construção do `Funcionario` (setters) podem lançar exceção (nome inválido, CPF/formato, salário abaixo do mínimo) — neste caso o `Service` captura/relança conforme o contrato local.
 
 ---
 
