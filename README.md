@@ -170,20 +170,18 @@ sequenceDiagram
     Controller-->>Controller: validação básica (salario != null)
     alt salario inválido
         Controller-->>Main: lança IllegalArgumentException
-        deactivate Controller
-    else salario válido
+    else
         Controller->>Service: cadastrarFuncionario(nome, email, cpf, salario)
         activate Service
 
         Service->>Repository: buscarPorCpf(cpf)
         activate Repository
-        Repository-->>Service: null (CPF não existe) / existente (se duplicado)
+        Repository-->>Service: retorno (null ou existente)
         deactivate Repository
 
         alt CPF já cadastrado
             Service-->>Controller: lança IllegalArgumentException
-            deactivate Service
-        else CPF livre
+        else
             Service->>Entity: new Funcionario(nome,email,cpf,salario)
             activate Entity
             Entity-->>Service: objeto Funcionario (valida via setters)
@@ -191,36 +189,33 @@ sequenceDiagram
 
             Service->>Repository: salvar(funcionario)
             activate Repository
-            Repository-->>Repository: valida nulo, re-checa CPF (integridade)
-            Repository-->>Repository: adiciona na lista (ArrayList)
-            Repository-->>Service: retorna funcionario salvo
+            Repository-->>Service: funcionario salvo
             deactivate Repository
 
             Service-->>Controller: retorna funcionario salvo
-            deactivate Service
         end
-
-        Controller-->>Main: retorna funcionario salvo
-        deactivate Controller
+        deactivate Service
     end
 
+    Controller-->>Main: retorna funcionario salvo
+    deactivate Controller
     Main-->>Usuário: exibe mensagem de sucesso ou erro
 ```
 
 Observações e mapeamento para o código
 
 - Pontos principais do fluxo (arquivos/métodos):
-    - `Main.main()` chama `FuncionarioController.salvarFuncionario(...)` — arquivo: `src/Main.java`.
-    - `FuncionarioController.salvarFuncionario` faz checagem básica (salário != null) e delega para `FuncionarioService.cadastrarFuncionario(...)` — arquivo: `src/controller/FuncionarioController.java`.
-    - `FuncionarioService.cadastrarFuncionario` chama `validarDadosNegocio(...)` que, entre outras coisas, invoca `repository.buscarPorCpf(cpf)` para garantir CPF único — arquivo: `src/service/FuncionarioService.java`.
-    - Se CPF livre, `FuncionarioService` instancia `new Funcionario(...)` (o construtor usa os setters que validam nome, email, cpf, salario) — arquivo: `src/entity/Funcionario.java`.
-    - `FuncionarioService` chama `repository.salvar(funcionario)` que valida integridade (recheca CPF) e adiciona o objeto à lista em memória (`ArrayList`) — arquivo: `src/repository/FuncionarioRepositoryMemoria.java`.
-    - O `repository.salvar` retorna o objeto salvo, a `Service` retorna ao `Controller`, e `Main` exibe o resultado.
+  - `Main.main()` chama `FuncionarioController.salvarFuncionario(...)` — arquivo: `src/Main.java`.
+  - `FuncionarioController.salvarFuncionario` faz checagem básica (salário != null) e delega para `FuncionarioService.cadastrarFuncionario(...)` — arquivo: `src/controller/FuncionarioController.java`.
+  - `FuncionarioService.cadastrarFuncionario` chama `validarDadosNegocio(...)` que, entre outras coisas, invoca `repository.buscarPorCpf(cpf)` para garantir CPF único — arquivo: `src/service/FuncionarioService.java`.
+  - Se CPF livre, `FuncionarioService` instancia `new Funcionario(...)` (o construtor usa os setters que validam nome, email, cpf, salario) — arquivo: `src/entity/Funcionario.java`.
+  - `FuncionarioService` chama `repository.salvar(funcionario)` que valida integridade (recheca CPF) e adiciona o objeto à lista em memória (`ArrayList`) — arquivo: `src/repository/FuncionarioRepositoryMemoria.java`.
+  - O `repository.salvar` retorna o objeto salvo, a `Service` retorna ao `Controller`, e `Main` exibe o resultado.
 
 - Possíveis caminhos de erro (capturados no diagrama):
-    - Salário nulo: `Controller` lança `IllegalArgumentException` antes de chamar o Service.
-    - CPF já existente: `validarDadosNegocio` (ou `repository.salvar` em checagem extra) lança `IllegalArgumentException` e a operação é abortada.
-    - Validações do `Funcionario` (nome/email/CPF/salário) podem lançar `IllegalArgumentException` no momento da construção do objeto; isso é capturado por `Service.cadastrarFuncionario` e relançado como `RuntimeException` no código atual.
+  - Salário nulo: `Controller` lança `IllegalArgumentException` antes de chamar o Service.
+  - CPF já existente: `validarDadosNegocio` (ou `repository.salvar` em checagem extra) lança `IllegalArgumentException` e a operação é abortada.
+  - Validações do `Funcionario` (nome/email/CPF/salário) podem lançar `IllegalArgumentException` no momento da construção do objeto; isso é capturado por `Service.cadastrarFuncionario` e relançado como `RuntimeException` no código atual.
 
 ---
 
@@ -1243,4 +1238,3 @@ Main → Controller → Service → Repository → Dados
 ```
 
 **Continue praticando e boa sorte! **
-
