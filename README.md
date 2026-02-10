@@ -153,6 +153,77 @@ Vamos seguir o caminho que os dados percorrem desde o usuário até serem salvos
 
 ---
 
+## Diagrama de Sequência — Operação: Salvar (Cadastrar) Funcionário
+
+```mermaid
+sequenceDiagram
+    participant Usuário
+    participant Main
+    participant Controller as FuncionarioController
+    participant Service as FuncionarioService
+    participant Repository as FuncionarioRepositoryMemoria
+    participant Entity as Funcionario
+
+    Usuário->>Main: escolhe opção "Salvar" e fornece dados
+    Main->>Controller: salvarFuncionario(nome, email, cpf, salario)
+    activate Controller
+    Controller-->>Controller: validação básica (salario != null)
+    alt salario inválido
+        Controller-->>Main: lança IllegalArgumentException
+        deactivate Controller
+    else salario válido
+        Controller->>Service: cadastrarFuncionario(nome, email, cpf, salario)
+        activate Service
+
+        Service->>Repository: buscarPorCpf(cpf)
+        activate Repository
+        Repository-->>Service: null (CPF não existe) / existente (se duplicado)
+        deactivate Repository
+
+        alt CPF já cadastrado
+            Service-->>Controller: lança IllegalArgumentException
+            deactivate Service
+        else CPF livre
+            Service->>Entity: new Funcionario(nome,email,cpf,salario)
+            activate Entity
+            Entity-->>Service: objeto Funcionario (valida via setters)
+            deactivate Entity
+
+            Service->>Repository: salvar(funcionario)
+            activate Repository
+            Repository-->>Repository: valida nulo, re-checa CPF (integridade)
+            Repository-->>Repository: adiciona na lista (ArrayList)
+            Repository-->>Service: retorna funcionario salvo
+            deactivate Repository
+
+            Service-->>Controller: retorna funcionario salvo
+            deactivate Service
+        end
+
+        Controller-->>Main: retorna funcionario salvo
+        deactivate Controller
+    end
+
+    Main-->>Usuário: exibe mensagem de sucesso ou erro
+```
+
+Observações e mapeamento para o código
+
+- Pontos principais do fluxo (arquivos/métodos):
+    - `Main.main()` chama `FuncionarioController.salvarFuncionario(...)` — arquivo: `src/Main.java`.
+    - `FuncionarioController.salvarFuncionario` faz checagem básica (salário != null) e delega para `FuncionarioService.cadastrarFuncionario(...)` — arquivo: `src/controller/FuncionarioController.java`.
+    - `FuncionarioService.cadastrarFuncionario` chama `validarDadosNegocio(...)` que, entre outras coisas, invoca `repository.buscarPorCpf(cpf)` para garantir CPF único — arquivo: `src/service/FuncionarioService.java`.
+    - Se CPF livre, `FuncionarioService` instancia `new Funcionario(...)` (o construtor usa os setters que validam nome, email, cpf, salario) — arquivo: `src/entity/Funcionario.java`.
+    - `FuncionarioService` chama `repository.salvar(funcionario)` que valida integridade (recheca CPF) e adiciona o objeto à lista em memória (`ArrayList`) — arquivo: `src/repository/FuncionarioRepositoryMemoria.java`.
+    - O `repository.salvar` retorna o objeto salvo, a `Service` retorna ao `Controller`, e `Main` exibe o resultado.
+
+- Possíveis caminhos de erro (capturados no diagrama):
+    - Salário nulo: `Controller` lança `IllegalArgumentException` antes de chamar o Service.
+    - CPF já existente: `validarDadosNegocio` (ou `repository.salvar` em checagem extra) lança `IllegalArgumentException` e a operação é abortada.
+    - Validações do `Funcionario` (nome/email/CPF/salário) podem lançar `IllegalArgumentException` no momento da construção do objeto; isso é capturado por `Service.cadastrarFuncionario` e relançado como `RuntimeException` no código atual.
+
+---
+
 ## CAMADA 1: Controller (Apresentação)
 
 ### Responsabilidade
@@ -1025,17 +1096,17 @@ No Repository:
 ## Exercícios Práticos
 
 1. Exercício 1: Trace o Fluxo
-Desenhe no papel o fluxo completo de quando o usuário escolhe "5. Atualizar funcionário".
+   Desenhe no papel o fluxo completo de quando o usuário escolhe "5. Atualizar funcionário".
 
 2. Exercício 2: Adicione Funcionalidade
-Implemente o método "buscar funcionários com salário acima de X".
+   Implemente o método "buscar funcionários com salário acima de X".
 - Repository: crie o método
 - Service: adicione regra de ordenação
 - Controller: adicione validação
 - Main: crie o menu
 
 3. Exercício 3: Identifique o Erro
-Código errado:
+   Código errado:
 ```java
 // FuncionarioController.java
 public Funcionario salvar(String nome, String cpf, double salario) {
@@ -1062,7 +1133,7 @@ public Funcionario salvar(String nome, String cpf, double salario) {
 | Controller | `FuncionarioController.java` | Receber comandos | Valida entrada, chama Service |  Regras de negócio, acesso a dados |
 | Service | `FuncionarioService.java` | Lógica de negócio | Aplica regras, coordena Repository |  Acesso direto a dados, validação de entrada |
 | Repository | `FuncionarioRepositoryMemoria.java` | Persistência | Salva/recupera dados |  Regras de negócio, formatação |
-| Entity | `Funcionario.java` | Modelo de dados | Representa objeto, valida-se |  Sabe onde é salvo |
+| Entity | `Funcionario.java` | Modelo de dados | Representa objeto, valida-se |  Não faz operações de CRUD |
 | Main | `Main.java` | Interface usuário | Captura entrada, exibe saída |  Lógica de negócio |
 
 ---
@@ -1172,6 +1243,4 @@ Main → Controller → Service → Repository → Dados
 ```
 
 **Continue praticando e boa sorte! **
-
----
 
